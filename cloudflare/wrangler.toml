@@ -1,22 +1,39 @@
-name = "chitty-api"
+name = "get-chitty"
 main = "src/edge/worker.ts"
 compatibility_date = "2024-10-01"
 compatibility_flags = ["nodejs_compat"]
 
+# Workers AI binding
 ai = { binding = "AI" }
 
+# Workflows
+[[workflows]]
+name = "approval-workflow"
+binding = "APPROVAL_WORKFLOW"
+class_name = "ApprovalWorkflow"
+
+# Service binding to agent.chitty.cc
+[[services]]
+binding = "AGENT_ORCHESTRATOR"
+service = "agent-orchestrator"
+environment = "production"
+
+# KV namespace for config/sessions
 [[kv_namespaces]]
 binding = "CHITTY_KV"
 id = "${CHITTY_KV_NAMESPACE_ID}"
 
+# R2 bucket for artifacts/uploads
 [[r2_buckets]]
 binding = "CHITTY_ASSETS"
 bucket_name = "${CHITTY_R2_BUCKET}"
 
+# Vectorize index for embeddings/RAG
 [[vectorize]]
 binding = "CHITTY_VECTORS"
 index_name = "${CHITTY_VECTOR_INDEX}"
 
+# Queues for background processing
 [[queues.producers]]
 binding = "CHITTY_TASKS"
 queue = "${CHITTY_TASKS_QUEUE}"
@@ -28,20 +45,31 @@ max_batch_timeout = 5
 max_retries = 3
 dead_letter_queue = "${CHITTY_DLQ_QUEUE}"
 
-[hyperdrive]
+# Hyperdrive (Postgres) connection
+[[hyperdrive]]
 binding = "CHITTY_DB"
 id = "${CHITTY_HYPERDRIVE_ID}"
 
 [observability]
 enabled = true
 
+# Development environment
 [env.dev]
-route = []
+name = "get-chitty-dev"
 
+# Staging environment
 [env.stage]
-route = []
+name = "get-chitty-stage"
 
+# Production environment
 [env.prod]
+name = "get-chitty"
 routes = [
   { pattern = "get.chitty.cc", custom_domain = true }
 ]
+
+# Production service binding points to production agent-orchestrator
+[[env.prod.services]]
+binding = "AGENT_ORCHESTRATOR"
+service = "agent-orchestrator"
+environment = "production"
