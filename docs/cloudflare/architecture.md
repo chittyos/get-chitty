@@ -1,13 +1,28 @@
-# Chitty Cloudflare Architecture (get.chittyy.cc)
+# ChittyOS Onboarding Gateway (get.chitty.cc)
 
-This document proposes a pragmatic, Cloudflare‑first architecture for get.chittyy.cc and maps Chitty’s core capabilities onto Cloudflare products. It balances fast global performance with strong trust/identity guarantees and a clear path to scale.
+**get.chitty.cc is the natural language onboarding gateway for ChittyOS.**
+
+Users arrive here and describe what they want to do in plain language. The system interprets their intent and routes them to the appropriate workflows, commands, and services throughout the ChittyOS ecosystem.
+
+## Purpose
+
+get.chitty.cc is a **conversational wayfinder** - the starting point for anyone interacting with ChittyOS:
+
+- **New users**: "I want to create a ChittyID" → routes to id.chitty.cc registration flow
+- **Developers**: "I need to authenticate my service" → guides through auth.chitty.cc setup
+- **Integrators**: "How do I connect to the API?" → provides api.chitty.cc documentation
+- **Explorers**: "What can ChittyOS do?" → describes ecosystem capabilities
+
+## Architecture
+
+Cloudflare‑first architecture balancing fast global performance with strong trust/identity guarantees.
 
 ## Goals
-- Global, low‑latency APIs and web UX.
-- Explicit trust/identity flows aligned to Chitty’s trust architecture.
-- Cost‑efficient AI with guardrails and observability.
-- Simple, automated deployments and safe rollouts.
-- Clear separation of concerns across code, CI/CD, and infra.
+- Natural language interface for ecosystem navigation
+- Route user intent to appropriate ChittyOS services
+- Provide guided workflows with step-by-step instructions
+- Track all interactions via ChittyContext for traceability
+- Cost‑efficient AI with guardrails and observability
 
 ## Product Mapping
 
@@ -41,12 +56,21 @@ This document proposes a pragmatic, Cloudflare‑first architecture for get.chit
 
 ## High‑Level Flow
 
-1) User lands on get.chittyy.cc → served by Worker or Pages.
-2) Public UI actions (apply for approval, identity linking) hit API routes in Workers.
-3) API writes to Postgres via Hyperdrive (approval_requests, chitty_ids, auth_users), caches hot reads in KV.
-4) Long operations enqueue messages to Queues; Workflows orchestrate multi‑step processes (e.g., approval → ID provisioning → certificate issuance → notifications).
-5) AI features use Workers AI directly when models are available, else through AI Gateway to third‑party providers.
-6) Search & recommendations use Vectorize; heavy objects go to R2.
+1) User lands on get.chitty.cc with a natural language request
+2) Worker creates ChittyContext tied to their ChittyID (or anonymous session)
+3) AI interprets intent and classifies the request type:
+   - **Registration**: Route to id.chitty.cc + auth.chitty.cc
+   - **Authentication**: Guide through auth.chitty.cc flows
+   - **API Access**: Provide api.chitty.cc endpoints and examples
+   - **Service Discovery**: List relevant services and capabilities
+   - **Workflow Initiation**: Start appropriate Cloudflare Workflow
+4) Response includes:
+   - Step-by-step instructions
+   - Relevant endpoints/routes
+   - Commands to execute
+   - Links to continue the journey
+5) All interactions logged via ChittyContext for auditability
+6) Context promoted/demoted based on successful outcomes
 
 ## Core Components
 

@@ -21,6 +21,7 @@
     "wrangler": "^3.87.0"
   },
   "dependencies": {
+    "@chittyos/chittycontext": "github:chittyos/chittycontext#main",
     "hono": "^4.6.5"
   }
 }
