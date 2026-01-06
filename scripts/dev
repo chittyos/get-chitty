@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ENV_NAME=${1:-dev}
+npx wrangler dev --env "$ENV_NAME"
+
