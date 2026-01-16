@@ -55,15 +55,12 @@ enabled = true
 
 # Development environment
 [env.dev]
-name = "get-chitty-dev"
 
 # Staging environment
 [env.stage]
-name = "get-chitty-stage"
 
 # Production environment
 [env.prod]
-name = "get-chitty"
 routes = [
   { pattern = "get.chitty.cc", custom_domain = true }
 ]

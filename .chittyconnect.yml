@@ -1,0 +1,35 @@
+# ChittyConnect Configuration for get-chitty
+service:
+  name: get-chitty
+  display_name: get Chitty
+  type: gateway
+  tier: 2
+  organization: CHITTYOS
+  chitty_id: ${GET_CHITTY_SERVICE_ID}
+  domains:
+    production: get.chitty.cc
+
+onboarding:
+  endpoint: https://get.chitty.cc/api/onboard
+  provisions: [chitty_id, service_token, certificate, trust_chain]
+
+auth:
+  provider: chittyauth
+  endpoint: https://auth.chitty.cc
+  service_token:
+    source: chittyconnect
+    key: GET_CHITTY_SERVICE_TOKEN
+
+secrets:
+  provider: chittyconnect
+  vault: 1password
+  paths:
+    production: op://ChittyOS/get-chitty-prod
+
+github:
+  repository: CHITTYOS/get-chitty
+
+monitoring:
+  health:
+    endpoint: /health
+    interval: 60s
