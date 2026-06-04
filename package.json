@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@chittyos/chittycontext": "github:chittyos/chittycontext#main",
-    "hono": "^4.6.5"
+    "hono": "^4.12.21"
   }
 }
 
