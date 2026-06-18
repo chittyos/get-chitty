@@ -13,7 +13,7 @@
     "test": "vitest run --reporter basic"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20241205.0",
+    "@cloudflare/workers-types": "^4.20260518.1",
     "eslint": "^10.1.0",
     "prettier": "^3.2.5",
     "typescript": "^6.0.3",
@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@chittyos/chittycontext": "github:chittyos/chittycontext#main",
-    "hono": "^4.6.5"
+    "hono": "^4.12.21"
   }
 }
 
