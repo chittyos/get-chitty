@@ -6,6 +6,11 @@ compatibility_flags = ["nodejs_compat"]
 # Workers AI binding
 ai = { binding = "AI" }
 
+# AI Search namespace for the central ChittyBrain (Agents, MCPs, Docs)
+[[ai_search_namespaces]]
+binding = "CHITTY_SEARCH"
+namespace = "chitty-ecosystem"
+
 # Workflows
 [[workflows]]
 name = "approval-workflow"

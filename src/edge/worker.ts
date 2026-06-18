@@ -45,7 +45,10 @@ const CHITTY_SERVICES = {
   registry: { domain: 'registry.chitty.cc', description: 'Service registry and discovery' },
   schema: { domain: 'schema.chitty.cc', description: 'Schema definitions and validation' },
   agent: { domain: 'agent.chitty.cc', description: 'AI agent orchestration' },
-  git: { domain: 'git.chitty.cc', description: 'ChittyOS source repositories and Git access' }
+  git: { domain: 'git.chitty.cc', description: 'ChittyOS source repositories and Git access' },
+  chittycan: { domain: 'cli.chitty.cc', description: 'Universal CLI and Local Adapter for ChittyOS' },
+  chittymarket: { domain: 'market.chitty.cc', description: 'Open marketplace for community MCP servers and free agents' },
+  chittypro: { domain: 'pro.chitty.cc', description: 'Premium ChittyPro marketplace for enterprise-grade LLM tooling' }
 } as const
 
 type UserIntent =
@@ -77,8 +80,9 @@ export interface Env extends ContextEnv {
   // Queues
   CHITTY_TASKS: Queue<any>
 
-  // AI
+  // AI & Search
   AI: Ai
+  CHITTY_SEARCH: any
 
   // Workflows
   APPROVAL_WORKFLOW: Workflow
@@ -158,7 +162,7 @@ app.post('/ask', async (c) => {
 
   try {
     // Classify intent using AI
-    const intentResult = await classifyIntent(c.env, query)
+    const intentResult = await classifyIntent(c.env, query, ctx)
 
     // Build response with guidance
     const response = buildGuidance(intentResult, query)
@@ -212,7 +216,8 @@ app.get('/ask', async (c) => {
   }
 
   try {
-    const intentResult = await classifyIntent(c.env, query)
+    const ctx = c.get('chittyContext') || null
+    const intentResult = await classifyIntent(c.env, query, ctx)
     const response = buildGuidance(intentResult, query)
 
     return c.json({
@@ -256,8 +261,7 @@ app.post('/api/ai/chat', async c => {
         model: body.model,
         temperature: body.temperature,
         provider: body.provider as any
-      },
-      ctx // Pass context for internal tracing
+      }
     )
 
     // Log AI usage via audit (traceable to ChittyID)
@@ -329,6 +333,177 @@ app.get('/api/ai/conversations/:conversationId', async c => {
     events,
     count: events.length
   })
+})
+
+// ============================================================
+// CHITTYBRAIN SEARCH - Centralized AI Search (RAG)
+// ============================================================
+
+// Initialize the central search index (Admin only)
+app.post('/api/admin/search/init', async c => {
+  const ctx = c.get('chittyContext')
+  
+  if (!c.env.CHITTY_SEARCH) {
+    return c.json({ error: 'AI Search binding (CHITTY_SEARCH) is not configured' }, 501)
+  }
+
+  try {
+    // Check if it already exists
+    const { result } = await c.env.CHITTY_SEARCH.list()
+    const exists = result.some((instance: any) => instance.id === 'chitty-brain')
+
+    if (exists) {
+      // Update existing instance to ensure hybrid search is active
+      const updated = await c.env.CHITTY_SEARCH.get('chitty-brain').update({
+        index_method: { vector: true, keyword: true },
+        fusion_method: 'rrf',
+        reranking: true,
+        reranking_model: '@cf/baai/bge-reranker-base',
+        rewrite_query: true
+      })
+      return c.json({ message: 'chitty-brain instance updated', config: updated })
+    }
+
+    // Create the central brain instance
+    const instance = await c.env.CHITTY_SEARCH.create({
+      id: 'chitty-brain',
+      index_method: {
+        vector: true,
+        keyword: true
+      },
+      fusion_method: 'rrf',
+      reranking: true,
+      reranking_model: '@cf/baai/bge-reranker-base',
+      rewrite_query: true,
+      // Custom schema to support our new metadata filtering and boosting
+      schema: {
+        properties: {
+          content: { type: "string" },
+          is_agent_ready: { type: "boolean" },
+          source_type: { type: "string" },
+          url: { type: "string" },
+          author: { type: "string" }
+        }
+      }
+    })
+
+    return c.json({ message: 'chitty-brain instance created successfully' })
+  } catch (err: any) {
+    return c.json({ error: 'Failed to initialize search instance', message: err.message }, 500)
+  }
+})
+
+// Queue a document for background ingestion into AI Search
+app.post('/api/admin/search/ingest', async c => {
+  const ctx = c.get('chittyContext')
+  const body = await c.req.json()
+
+  if (!body.filename || !body.content) {
+    return c.json({ error: 'Missing filename or content in request body' }, 400)
+  }
+
+  try {
+    await c.env.CHITTY_TASKS.send({
+      type: 'index.document',
+      payload: {
+        filename: body.filename,
+        content: body.content
+      }
+    })
+    
+    // Audit the ingestion request
+    await logAudit(c.env, createAuditEvent(
+      ctx, 'ai.search', 'ingest.queued', '/api/admin/search/ingest', { filename: body.filename, status: 'queued' }
+    ))
+
+    return c.json({ message: 'Ingestion task queued successfully', filename: body.filename })
+  } catch (err: any) {
+    return c.json({ error: 'Failed to queue ingestion task', message: err.message }, 500)
+  }
+})
+
+app.get('/api/search', async c => {
+  const ctx = c.get('chittyContext')
+  const query = c.req.query('q')
+
+  if (!query) {
+    return c.json({ error: 'Missing query parameter "q"' }, 400)
+  }
+
+  if (!c.env.CHITTY_SEARCH) {
+    return c.json({ error: 'AI Search binding (CHITTY_SEARCH) is not configured' }, 501)
+  }
+
+  try {
+    // We get a lazy handle to the global "chitty-ecosystem" instance
+    // which holds marketplace JSONs, MCP docs, pentad files, etc.
+    const instance = c.env.CHITTY_SEARCH.get("chitty-brain")
+    
+    // Hit the managed vector + hybrid search backend with built-in query rewriting
+    // Inject the Prompt Normalizer/Enhancer as a system prompt to guide the retrieval and generation
+    const systemPrompt = `You are the ChittyBrain context synthesizer. 
+Analyze the user's query and extract the most relevant technical specifications, 
+MCP capabilities, and architecture patterns from the knowledge base.
+Format your response in structured Markdown, prioritizing exact configuration snippets, 
+API endpoints, and tool specifications. 
+Be concise and avoid conversational filler.`;
+
+    const results = await instance.search({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: query }
+      ],
+      ai_search_options: {
+        retrieval: {
+          retrieval_type: "hybrid",
+          fusion_method: "rrf",
+          // 1. Reranking (Cross-Encoder)
+          reranking: true,
+          reranking_model: "@cf/baai/bge-reranker-base",
+          // 2. Query Rewriting (Expands short NLP into precise search vectors)
+          rewrite_query: true,
+          // 3. Metadata Filtering (Limit to agent-actionable context)
+          filter: {
+            "metadata.is_agent_ready": { "$eq": true }
+          },
+          // 4. Relevance Boosting (Prioritize highly authoritative MCP docs)
+          boost: {
+            "metadata.source_type": { "mcp_spec": 1.5, "official_doc": 1.2 }
+          }
+        },
+        // 5. Similarity Caching (Bypass LLM for exact match repeated queries)
+        cache: {
+          similarity_threshold: 0.95
+        }
+      }
+    })
+
+    // Audit the search for traceability
+    await logAudit(c.env, createAuditEvent(
+      ctx,
+      'ai.search',
+      'query',
+      '/api/search',
+      { query, status: 'success' }
+    ))
+
+    return c.json({
+      requestId: ctx.requestId,
+      chittyId: ctx.chittyId,
+      query,
+      results
+    })
+  } catch (err: any) {
+    // Audit failure
+    await logAudit(c.env, createAuditEvent(
+      ctx,
+      'ai.search',
+      'query',
+      '/api/search',
+      { query, status: 'error', errorMessage: err.message }
+    ))
+    return c.json({ error: 'Search failed', message: err.message }, 500)
+  }
 })
 
 // ============================================================
@@ -565,28 +740,40 @@ app.all('/agent/*', async c => {
 /**
  * Classify user intent using AI
  */
-async function classifyIntent(env: Env, query: string): Promise<IntentResult> {
-  const systemPrompt = `You are a routing assistant for ChittyOS. Analyze the user's query and classify their intent.
+async function classifyIntent(env: Env, query: string, ctx?: any): Promise<IntentResult> {
+  let systemPrompt = `You are a routing assistant for ChittyOS. Analyze the user's query and classify their intent.
 
-Available services:
+Available core services:
 - identity (id.chitty.cc): ChittyID creation and management
-- auth (auth.chitty.cc): Authentication, OAuth, tokens
+- auth (auth.chitty.cc): Authentication, OAuth, tokens, API keys
 - api (api.chitty.cc): API access, documentation
 - connect (connect.chitty.cc): Service connections, integrations
-- registry (registry.chitty.cc): Service discovery
+- registry (registry.chitty.cc): Base service discovery
 - schema (schema.chitty.cc): Schema validation
 - agent (agent.chitty.cc): AI agents
 - git (git.chitty.cc): Source repositories, clone repos, Git access
 
+Available ecosystem tools & marketplaces:
+- chittycan (cli.chitty.cc / npm i -g chittycan): The universal CLI for ChittyOS. Guides users to the terminal.
+- chittymarket (market.chitty.cc): The open marketplace for community MCP servers, plugins, and free agents.
+- chittypro (pro.chitty.cc): The premium ChittyPro™ marketplace for enterprise-grade LLM tooling, advanced agents, and SLA-backed services.
+
 Respond with JSON only:
 {
-  "intent": "create_identity" | "authenticate" | "api_access" | "service_discovery" | "connect_service" | "clone_repo" | "general_help" | "unknown",
+  "intent": "create_identity" | "authenticate" | "api_access" | "service_discovery" | "connect_service" | "clone_repo" | "general_help" | "install_cli" | "browse_market" | "browse_pro" | "unknown",
   "confidence": 0.0-1.0,
-  "services": ["identity", "auth", etc.],
+  "services": ["identity", "auth", "chittycan", "chittymarket", "chittypro", etc.],
   "steps": ["Step 1: ...", "Step 2: ..."],
-  "commands": ["curl ...", etc.] (optional),
-  "endpoints": ["https://id.chitty.cc/...", etc.] (optional)
+  "commands": ["npm i -g chittycan", "can config setup", "can market pull", etc.] (optional),
+  "endpoints": ["https://market.chitty.cc/...", "https://pro.chitty.cc/...", etc.] (optional)
 }`
+
+  // Dynamic Context Injection
+  if (!ctx || !ctx.chittyId) {
+    systemPrompt += `\n\nCRITICAL CONTEXT: The user making this request is currently ANONYMOUS. If the function or service they are asking for requires authorization or a ChittyID, Step 1 of your response MUST explicitly guide them to register at id.chitty.cc before proceeding to the actual steps.`
+  } else {
+    systemPrompt += `\n\nCRITICAL CONTEXT: The user is currently AUTHENTICATED with ChittyID: ${ctx.chittyId}. You do not need to ask them to register.`
+  }
 
   const messages: ChatMessage[] = [
     { role: 'system', content: systemPrompt },
@@ -600,7 +787,7 @@ Respond with JSON only:
     })
 
     // Parse AI response
-    const text = result.content.trim()
+    const text = result.output.trim()
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]) as IntentResult
