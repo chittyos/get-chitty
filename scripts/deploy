@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ENV_NAME=${1:-prod}
-npx wrangler deploy --env "$ENV_NAME"
+npx cf deploy -m "$ENV_NAME"
 

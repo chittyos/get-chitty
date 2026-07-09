@@ -11,10 +11,10 @@ dev:
 	npx wrangler dev --env $(DEV)
 
 build:
-	npx wrangler deploy --dry-run --env $(DEV)
+	npx cf deploy --dry-run -m $(DEV)
 
 deploy:
-	npx wrangler deploy --env $(DEV)
+	npx cf deploy -m $(DEV)
 
 lint:
 	npx eslint . --ext .ts || true
