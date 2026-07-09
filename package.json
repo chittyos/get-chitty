@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --config cloudflare/wrangler.toml",
-    "build": "cf deploy --dry-run --config cloudflare/wrangler.toml",
-    "deploy": "cf deploy --config cloudflare/wrangler.toml",
+    "build": "wrangler deploy --dry-run --config cloudflare/wrangler.toml",
+    "deploy": "wrangler deploy --config cloudflare/wrangler.toml",
     "lint": "eslint . --ext .ts",
     "fmt": "prettier -w .",
     "typecheck": "tsc --noEmit",
