@@ -1,7 +1,13 @@
-name = "get-chitty"
+name = "getchitty"
 main = "src/edge/worker.ts"
-compatibility_date = "2024-10-01"
+compatibility_date = "2026-08-07"
 compatibility_flags = ["nodejs_compat"]
+
+# Production routes (bare `wrangler deploy` applies top-level routes;
+# the Workers Builds default-branch trigger deploys without --env)
+routes = [
+  { pattern = "get.chitty.cc", custom_domain = true }
+]
 
 # Workers AI binding
 ai = { binding = "AI" }
@@ -65,10 +71,9 @@ enabled = true
 [env.stage]
 
 # Production environment
+# (routes are declared at top level so the bare `wrangler deploy`
+# default-branch trigger binds get.chitty.cc to the getchitty worker)
 [env.prod]
-routes = [
-  { pattern = "get.chitty.cc", custom_domain = true }
-]
 
 # Production service binding points to production agent-orchestrator
 [[env.prod.services]]
