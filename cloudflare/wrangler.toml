@@ -1,6 +1,6 @@
 name = "getchitty"
 main = "src/edge/worker.ts"
-compatibility_date = "2024-10-01"
+compatibility_date = "2026-08-07"
 compatibility_flags = ["nodejs_compat"]
 
 # Production routes (bare `wrangler deploy` applies top-level routes;
