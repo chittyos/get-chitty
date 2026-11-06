@@ -1,6 +1,6 @@
 name: ChittyConnect Sync
 
-# Thin caller. The implementation lives in CHITTYOS/chittyops, which is the
+# Thin caller. The implementation lives in chittyos/.github, which is the
 # established home for shared workflows here.
 #
 # What this replaced ended its curl with `|| true`, so every run reported
@@ -17,7 +17,7 @@ on:
 
 jobs:
   sync:
-    uses: CHITTYOS/chittyops/.github/workflows/reusable-chittyconnect-sync.yml@main
+    uses: chittyos/.github/.github/workflows/reusable-chittyconnect-sync.yml@main
     # Explicit, NOT `secrets: inherit`. Inherit hands the called workflow every
     # secret this repository holds; it needs exactly one.
     secrets:
